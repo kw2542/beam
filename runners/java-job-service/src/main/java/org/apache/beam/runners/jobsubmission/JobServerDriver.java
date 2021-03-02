@@ -235,6 +235,7 @@ public abstract class JobServerDriver implements Runnable {
   }
 
   private GrpcFnServer<ArtifactStagingService> createArtifactStagingService() throws IOException {
+    LOG.info("artifactStagingPath = {}", Paths.get(System.getProperty("java.io.tmpdir"), "beam-artifact-staging"));
     ArtifactStagingService service =
         new ArtifactStagingService(
             ArtifactStagingService.beamFilesystemArtifactDestinationProvider(

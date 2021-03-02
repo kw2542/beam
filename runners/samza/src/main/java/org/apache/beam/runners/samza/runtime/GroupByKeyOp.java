@@ -190,6 +190,7 @@ public class GroupByKeyOp<K, InputT, OutputT>
   @Override
   public void processElement(
       WindowedValue<KeyedWorkItem<K, InputT>> inputElement, OpEmitter<KV<K, OutputT>> emitter) {
+    LOG.info("GroupByKeyOp#processElement {}", inputElement);
     fnRunner.startBundle();
     fnRunner.processElement(inputElement);
     fnRunner.finishBundle();

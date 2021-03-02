@@ -436,7 +436,7 @@ public class Environments {
         ReleaseInfo.getReleaseInfo().getDefaultDockerRepoRoot(),
         ReleaseInfo.getReleaseInfo().getDefaultDockerRepoPrefix(),
         getJavaVersion().toString(),
-        ReleaseInfo.getReleaseInfo().getSdkVersion());
+        "2.28.0");
   }
 
   private static String getDockerContainerImage(PortablePipelineOptions options) {

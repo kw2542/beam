@@ -52,6 +52,7 @@ import org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.ByteString;
 import org.apache.beam.vendor.grpc.v1p26p0.io.grpc.ManagedChannel;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableList;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -181,19 +182,21 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
           prepareJobResponse.getArtifactStagingEndpoint();
       String stagingSessionToken = prepareJobResponse.getStagingSessionToken();
 
-      try (CloseableResource<ManagedChannel> artifactChannel =
-          CloseableResource.of(
-              channelFactory.forDescriptor(artifactStagingEndpoint), ManagedChannel::shutdown)) {
+      if (StringUtils.isNotBlank(artifactStagingEndpoint.getUrl())) {
+        try (CloseableResource<ManagedChannel> artifactChannel =
+            CloseableResource.of(
+                channelFactory.forDescriptor(artifactStagingEndpoint), ManagedChannel::shutdown)) {
 
-        ArtifactStagingService.offer(
-            new ArtifactRetrievalService(),
-            ArtifactStagingServiceGrpc.newStub(artifactChannel.get()),
-            stagingSessionToken);
-      } catch (CloseableResource.CloseException e) {
-        LOG.warn("Error closing artifact staging channel", e);
-        // CloseExceptions should only be thrown while closing the channel.
-      } catch (Exception e) {
-        throw new RuntimeException("Error staging files.", e);
+          ArtifactStagingService.offer(
+              new ArtifactRetrievalService(),
+              ArtifactStagingServiceGrpc.newStub(artifactChannel.get()),
+              stagingSessionToken);
+        } catch (CloseableResource.CloseException e) {
+          LOG.warn("Error closing artifact staging channel", e);
+          // CloseExceptions should only be thrown while closing the channel.
+        } catch (Exception e) {
+          throw new RuntimeException("Error staging files.", e);
+        }
       }
 
       RunJobRequest runJobRequest =

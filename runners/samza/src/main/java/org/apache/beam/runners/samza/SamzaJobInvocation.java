@@ -30,6 +30,7 @@ import org.apache.beam.model.jobmanagement.v1.JobApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.graph.GreedyPipelineFuser;
 import org.apache.beam.runners.jobsubmission.JobInvocation;
+import org.apache.beam.runners.jobsubmission.PortablePipelineRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,8 +60,8 @@ public class SamzaJobInvocation extends JobInvocation {
     // so we need to reset the runner here to a valid Java runner
     options.setRunner(SamzaRunner.class);
     try {
-      final SamzaRunner runner = SamzaRunner.fromOptions(options);
-      return (SamzaPortablePipelineResult) runner.runPortablePipeline(fusedPipeline);
+      final PortablePipelineRunner runner = new SamzaPipelineRunner(options);
+      return (SamzaPortablePipelineResult) runner.run(fusedPipeline, null);
     } catch (Exception e) {
       throw new RuntimeException("Failed to invoke samza job", e);
     }
