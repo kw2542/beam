@@ -131,7 +131,7 @@ import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.PCollectionView;
-import org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.ByteString;
+import org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.ByteString;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Optional;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterables;
@@ -159,9 +159,8 @@ import org.slf4j.LoggerFactory;
 @RunWith(JUnit4.class)
 @SuppressWarnings({
   "rawtypes", // TODO(https://issues.apache.org/jira/browse/BEAM-10556)
-  "keyfor",
-  "nullness"
-}) // TODO(https://issues.apache.org/jira/browse/BEAM-10402)
+  "keyfor"
+})
 public class RemoteExecutionTest implements Serializable {
   @Rule public transient ResetDateTimeProvider resetDateTimeProvider = new ResetDateTimeProvider();
 

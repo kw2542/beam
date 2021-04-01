@@ -36,6 +36,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.services.dataflow.model.AutoscalingSettings;
 import com.google.api.services.dataflow.model.DataflowPackage;
+import com.google.api.services.dataflow.model.DebugOptions;
 import com.google.api.services.dataflow.model.Disk;
 import com.google.api.services.dataflow.model.Environment;
 import com.google.api.services.dataflow.model.Job;
@@ -107,7 +108,7 @@ import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TimestampedValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.WindowingStrategy;
-import org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.ByteString;
+import org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.ByteString;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Supplier;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterables;
@@ -229,7 +230,7 @@ public class DataflowPipelineTranslator {
   /** Renders a {@link Job} as a string. */
   public static String jobToString(Job job) {
     try {
-      return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(job);
+      return MAPPER.writeValueAsString(job);
     } catch (JsonProcessingException exc) {
       throw new IllegalStateException("Failed to render Job as String.", exc);
     }
@@ -334,6 +335,7 @@ public class DataflowPipelineTranslator {
 
       Environment environment = new Environment();
       job.setEnvironment(environment);
+      job.getEnvironment().setServiceOptions(options.getServiceOptions());
 
       WorkerPool workerPool = new WorkerPool();
 
@@ -434,6 +436,11 @@ public class DataflowPipelineTranslator {
       if (options.getDataflowKmsKey() != null) {
         environment.setServiceKmsKeyName(options.getDataflowKmsKey());
       }
+      if (options.isHotKeyLoggingEnabled()) {
+        DebugOptions debugOptions = new DebugOptions();
+        debugOptions.setEnableHotKeyLogging(true);
+        environment.setDebugOptions(debugOptions);
+      }
 
       pipeline.traverseTopologically(this);
       return job;
@@ -505,7 +512,7 @@ public class DataflowPipelineTranslator {
       LOG.debug("Checking translation of {}", value);
       // Primitive transforms are the only ones assigned step names.
       if (producer.getTransform() instanceof CreateDataflowView
-          && !hasExperiment(options, "beam_fn_api")) {
+          && !DataflowRunner.useUnifiedWorker(options)) {
         // CreateDataflowView produces a dummy output (as it must be a primitive transform)
         // but in the Dataflow Job graph produces only the view and not the output PCollection.
         asOutputReference(
@@ -513,7 +520,7 @@ public class DataflowPipelineTranslator {
             producer.toAppliedPTransform(getPipeline()));
         return;
       } else if (producer.getTransform() instanceof View.CreatePCollectionView
-          && hasExperiment(options, "beam_fn_api")) {
+          && DataflowRunner.useUnifiedWorker(options)) {
         // View.CreatePCollectionView produces a dummy output (as it must be a primitive transform)
         // but in the Dataflow Job graph produces only the view and not the output PCollection.
         asOutputReference(
@@ -794,8 +801,7 @@ public class DataflowPipelineTranslator {
                 byteArrayToJsonString(
                     serializeWindowingStrategy(windowingStrategy, context.getPipelineOptions())));
             stepContext.addInput(
-                PropertyNames.IS_MERGING_WINDOW_FN,
-                !windowingStrategy.getWindowFn().isNonMerging());
+                PropertyNames.IS_MERGING_WINDOW_FN, windowingStrategy.needsMerge());
             stepContext.addCollectionToSingletonOutput(
                 input, PropertyNames.OUTPUT, transform.getView());
           }
@@ -926,7 +932,7 @@ public class DataflowPipelineTranslator {
             boolean isStreaming =
                 context.getPipelineOptions().as(StreamingOptions.class).isStreaming();
             boolean allowCombinerLifting =
-                windowingStrategy.getWindowFn().isNonMerging()
+                !windowingStrategy.needsMerge()
                     && windowingStrategy.getWindowFn().assignsToOneWindow();
             if (isStreaming) {
               allowCombinerLifting &= transform.fewKeys();
@@ -1259,7 +1265,12 @@ public class DataflowPipelineTranslator {
 
     boolean isStateful = DoFnSignatures.isStateful(fn);
     if (isStateful) {
-      DataflowRunner.verifyDoFnSupported(fn, context.getPipelineOptions().isStreaming());
+      DataflowPipelineOptions options = context.getPipelineOptions();
+      DataflowRunner.verifyDoFnSupported(
+          fn,
+          options.isStreaming(),
+          DataflowRunner.useUnifiedWorker(options),
+          DataflowRunner.useStreamingEngine(options));
       DataflowRunner.verifyStateSupportForWindowingStrategy(windowingStrategy);
     }
 

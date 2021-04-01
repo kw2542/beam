@@ -42,10 +42,10 @@ import org.apache.beam.sdk.transforms.windowing.WindowFn;
 import org.apache.beam.sdk.util.SerializableUtils;
 import org.apache.beam.sdk.values.WindowingStrategy;
 import org.apache.beam.sdk.values.WindowingStrategy.AccumulationMode;
-import org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.ByteString;
-import org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.InvalidProtocolBufferException;
-import org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.util.Durations;
-import org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.util.Timestamps;
+import org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.ByteString;
+import org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.util.Durations;
+import org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.util.Timestamps;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Strings;
 import org.joda.time.Duration;
 
@@ -302,7 +302,9 @@ public class WindowingStrategyTranslation implements Serializable {
             .setMergeStatus(
                 windowFn.isNonMerging()
                     ? MergeStatus.Enum.NON_MERGING
-                    : MergeStatus.Enum.NEEDS_MERGE)
+                    : (windowingStrategy.isAlreadyMerged()
+                        ? MergeStatus.Enum.ALREADY_MERGED
+                        : MergeStatus.Enum.NEEDS_MERGE))
             .setOnTimeBehavior(toProto(windowingStrategy.getOnTimeBehavior()))
             .setWindowCoderId(components.registerCoder(windowFn.windowCoder()))
             .setEnvironmentId(environmentId);

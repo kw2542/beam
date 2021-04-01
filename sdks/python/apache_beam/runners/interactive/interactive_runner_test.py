@@ -28,10 +28,13 @@ from __future__ import print_function
 
 import sys
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
 import apache_beam as beam
+from apache_beam.dataframe.convert import to_dataframe
+from apache_beam.dataframe.convert import to_pcollection
 from apache_beam.options.pipeline_options import StandardOptions
 from apache_beam.runners.direct import direct_runner
 from apache_beam.runners.interactive import interactive_beam as ib
@@ -45,13 +48,6 @@ from apache_beam.utils.timestamp import Timestamp
 from apache_beam.utils.windowed_value import PaneInfo
 from apache_beam.utils.windowed_value import PaneInfoTiming
 from apache_beam.utils.windowed_value import WindowedValue
-
-# TODO(BEAM-8288): clean up the work-around of nose tests using Python2 without
-# unittest.mock module.
-try:
-  from unittest.mock import patch
-except ImportError:
-  from mock import patch  # type: ignore[misc]
 
 
 def print_with_message(msg):
@@ -154,9 +150,6 @@ class InteractiveRunnerTest(unittest.TestCase):
     ]
     self.assertEqual(actual_reified, expected_reified)
 
-  @unittest.skipIf(
-      sys.version_info < (3, 5, 3),
-      'The tests require at least Python 3.6 to work.')
   def test_streaming_wordcount(self):
     class WordExtractingDoFn(beam.DoFn):
       def process(self, element):
@@ -287,6 +280,28 @@ class InteractiveRunnerTest(unittest.TestCase):
     self.assertEqual({0, 1, 4, 9, 16}, set(result.get(square)))
     self.assertTrue(cube in ie.current_env().computed_pcollections)
     self.assertEqual({0, 1, 8, 27, 64}, set(result.get(cube)))
+
+  @unittest.skipIf(sys.platform == "win32", "[BEAM-10627]")
+  def test_dataframes(self):
+    p = beam.Pipeline(
+        runner=interactive_runner.InteractiveRunner(
+            direct_runner.DirectRunner()))
+    data = p | beam.Create(
+        [1, 2, 3]) | beam.Map(lambda x: beam.Row(square=x * x, cube=x * x * x))
+    df = to_dataframe(data)
+    pcoll = to_pcollection(df)
+
+    # Watch the local scope for Interactive Beam so that values will be cached.
+    ib.watch(locals())
+
+    # This is normally done in the interactive_utils when a transform is
+    # applied but needs an IPython environment. So we manually run this here.
+    ie.current_env().track_user_pipelines()
+
+    df_expected = pd.DataFrame({'square': [1, 4, 9], 'cube': [1, 8, 27]})
+    pd.testing.assert_frame_equal(df_expected, ib.collect(data, n=10))
+    pd.testing.assert_frame_equal(df_expected, ib.collect(df, n=10))
+    pd.testing.assert_frame_equal(df_expected, ib.collect(pcoll, n=10))
 
 
 if __name__ == '__main__':

@@ -89,7 +89,9 @@ import org.slf4j.LoggerFactory;
 public class ZetaSQLQueryPlanner implements QueryPlanner {
   // TODO(BEAM-11747) Re-enable BeamJavaUdfCalcRule by default when it is safe to do so.
   public static final Collection<RelOptRule> DEFAULT_CALC =
-      ImmutableList.<RelOptRule>builder().add(BeamZetaSqlCalcRule.INSTANCE).build();
+      ImmutableList.<RelOptRule>builder()
+          .add(BeamZetaSqlCalcRule.INSTANCE, BeamZetaSqlCalcMergeRule.INSTANCE)
+          .build();
 
   private static final Logger LOG = LoggerFactory.getLogger(ZetaSQLQueryPlanner.class);
 
@@ -159,7 +161,7 @@ public class ZetaSQLQueryPlanner implements QueryPlanner {
               if (udf.function instanceof ZetaSqlScalarFunctionImpl) {
                 ZetaSqlScalarFunctionImpl scalarFunction = (ZetaSqlScalarFunctionImpl) udf.function;
                 if (!scalarFunction.functionGroup.equals(
-                    SqlAnalyzer.USER_DEFINED_JAVA_SCALAR_FUNCTIONS)) {
+                    BeamZetaSqlCatalog.USER_DEFINED_JAVA_SCALAR_FUNCTIONS)) {
                   // Reject ZetaSQL Builtin Scalar Functions
                   return false;
                 }
@@ -224,7 +226,7 @@ public class ZetaSQLQueryPlanner implements QueryPlanner {
               if (udf.function instanceof ZetaSqlScalarFunctionImpl) {
                 ZetaSqlScalarFunctionImpl scalarFunction = (ZetaSqlScalarFunctionImpl) udf.function;
                 if (scalarFunction.functionGroup.equals(
-                    SqlAnalyzer.USER_DEFINED_JAVA_SCALAR_FUNCTIONS)) {
+                    BeamZetaSqlCatalog.USER_DEFINED_JAVA_SCALAR_FUNCTIONS)) {
                   return false;
                 }
               }

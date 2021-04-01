@@ -19,12 +19,9 @@
 
 # pytype: skip-file
 
-from __future__ import absolute_import
-
 import typing
 import unittest
 
-import future.tests.base  # pylint: disable=unused-import
 import numpy as np
 # patches unittest.testcase to be python3 compatible
 import pandas as pd
@@ -122,6 +119,25 @@ class SchemasTest(unittest.TestCase):
           | beam.Create([
               Simple(name=unicode(i), id=i, height=float(i)) for i in range(5)
           ])
+          | schemas.BatchRowsAsDataFrame(min_batch_size=10, max_batch_size=10))
+      assert_that(res, matches_df(expected))
+
+  def test_simple_df_with_beam_row(self):
+    expected = pd.DataFrame({
+        'name': list(unicode(i) for i in range(5)),
+        'id': list(range(5)),
+        'height': list(float(i) for i in range(5))
+    },
+                            columns=['name', 'id', 'height'])
+
+    with TestPipeline() as p:
+      res = (
+          p
+          | beam.Create([(str(i), i, float(i)) for i in range(5)])
+          | beam.Select(
+              name=lambda r: str(r[0]),
+              id=lambda r: int(r[1]),
+              height=lambda r: float(r[2]))
           | schemas.BatchRowsAsDataFrame(min_batch_size=10, max_batch_size=10))
       assert_that(res, matches_df(expected))
 

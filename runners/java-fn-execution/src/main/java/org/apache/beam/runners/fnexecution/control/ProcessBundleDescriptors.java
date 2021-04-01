@@ -58,7 +58,7 @@ import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.util.WindowedValue.FullWindowedValueCoder;
 import org.apache.beam.sdk.values.KV;
-import org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableList;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableTable;
@@ -353,12 +353,10 @@ public class ProcessBundleDescriptors {
         case PROCESSING_TIME:
           spec = TimerSpecs.timer(TimeDomain.PROCESSING_TIME);
           break;
-        case SYNCHRONIZED_PROCESSING_TIME:
-          spec = TimerSpecs.timer(TimeDomain.SYNCHRONIZED_PROCESSING_TIME);
-          break;
         default:
           throw new IllegalArgumentException(
-              String.format("Unknown time domain %s", timerFamilySpec.getTimeDomain()));
+              String.format(
+                  "Unknown or unsupported time domain %s", timerFamilySpec.getTimeDomain()));
       }
 
       for (WireCoderSetting wireCoderSetting : stage.getWireCoderSettings()) {

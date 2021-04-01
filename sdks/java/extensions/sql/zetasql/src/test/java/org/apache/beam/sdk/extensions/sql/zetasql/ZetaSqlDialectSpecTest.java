@@ -64,9 +64,6 @@ import org.junit.runners.JUnit4;
 
 /** Tests for various operations/functions defined by ZetaSQL dialect. */
 @RunWith(JUnit4.class)
-@SuppressWarnings({
-  "nullness" // TODO(https://issues.apache.org/jira/browse/BEAM-10402)
-})
 public class ZetaSqlDialectSpecTest extends ZetaSqlTestBase {
 
   @Rule public transient TestPipeline pipeline = TestPipeline.create();
@@ -2405,6 +2402,24 @@ public class ZetaSqlDialectSpecTest extends ZetaSqlTestBase {
                 .attachValues(Row.withSchema(TestInput.STRUCT_SCHEMA).attachValues(1L, "1")),
             Row.withSchema(schema)
                 .attachValues(Row.withSchema(TestInput.STRUCT_SCHEMA).attachValues(2L, "2")));
+
+    pipeline.run().waitUntilFinish(Duration.standardMinutes(PIPELINE_EXECUTION_WAITTIME_MINUTES));
+  }
+
+  @Test
+  @Ignore("[BEAM-9378] This should work, but is currently unimplemented.")
+  public void testStructOfStructRemap() {
+    String sql =
+        "SELECT STRUCT(row.row_id AS int_value_remapped) AS remapped FROM table_with_struct_of_struct";
+
+    PCollection<Row> stream = execute(sql);
+
+    Schema nested = Schema.builder().addInt64Field("int_value_remapped").build();
+    Schema schema = Schema.builder().addRowField("remapped", nested).build();
+    PAssert.that(stream)
+        .containsInAnyOrder(
+            Row.withSchema(schema).attachValues(Row.withSchema(nested).attachValues(1L)),
+            Row.withSchema(schema).attachValues(Row.withSchema(nested).attachValues(2L)));
 
     pipeline.run().waitUntilFinish(Duration.standardMinutes(PIPELINE_EXECUTION_WAITTIME_MINUTES));
   }

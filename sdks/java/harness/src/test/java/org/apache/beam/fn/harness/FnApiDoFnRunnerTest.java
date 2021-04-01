@@ -74,11 +74,13 @@ import org.apache.beam.runners.core.construction.RehydratedComponents;
 import org.apache.beam.runners.core.construction.SdkComponents;
 import org.apache.beam.runners.core.construction.graph.ProtoOverrides;
 import org.apache.beam.runners.core.construction.graph.SplittableParDoExpander;
+import org.apache.beam.runners.core.metrics.DistributionData;
 import org.apache.beam.runners.core.metrics.ExecutionStateTracker;
 import org.apache.beam.runners.core.metrics.MetricUpdates.MetricUpdate;
 import org.apache.beam.runners.core.metrics.MetricsContainerImpl;
 import org.apache.beam.runners.core.metrics.MetricsContainerStepMap;
 import org.apache.beam.runners.core.metrics.MonitoringInfoConstants;
+import org.apache.beam.runners.core.metrics.MonitoringInfoConstants.Urns;
 import org.apache.beam.runners.core.metrics.SimpleMonitoringInfoBuilder;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.Coder;
@@ -137,8 +139,8 @@ import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
-import org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.ByteString;
-import org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.util.Durations;
+import org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.ByteString;
+import org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.util.Durations;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Suppliers;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableList;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
@@ -160,7 +162,6 @@ import org.slf4j.LoggerFactory;
 @RunWith(Enclosed.class)
 @SuppressWarnings({
   "rawtypes", // TODO(https://issues.apache.org/jira/browse/BEAM-10556)
-  "nullness" // TODO(https://issues.apache.org/jira/browse/BEAM-10402)
 })
 public class FnApiDoFnRunnerTest implements Serializable {
 
@@ -263,10 +264,12 @@ public class FnApiDoFnRunnerTest implements Serializable {
       PCollectionConsumerRegistry consumers =
           new PCollectionConsumerRegistry(
               metricsContainerRegistry, mock(ExecutionStateTracker.class));
+
       consumers.register(
           outputPCollectionId,
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) mainOutputValues::add);
+          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) mainOutputValues::add,
+          StringUtf8Coder.of());
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -444,11 +447,13 @@ public class FnApiDoFnRunnerTest implements Serializable {
       consumers.register(
           outputPCollectionId,
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) mainOutputValues::add);
+          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) mainOutputValues::add,
+          StringUtf8Coder.of());
       consumers.register(
           additionalPCollectionId,
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) additionalOutputValues::add);
+          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) additionalOutputValues::add,
+          StringUtf8Coder.of());
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -570,11 +575,13 @@ public class FnApiDoFnRunnerTest implements Serializable {
       consumers.register(
           outputPCollectionId,
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) mainOutputValues::add);
+          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) mainOutputValues::add,
+          StringUtf8Coder.of());
       consumers.register(
           additionalPCollectionId,
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) additionalOutputValues::add);
+          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) additionalOutputValues::add,
+          StringUtf8Coder.of());
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -731,7 +738,8 @@ public class FnApiDoFnRunnerTest implements Serializable {
       consumers.register(
           Iterables.getOnlyElement(pTransform.getOutputsMap().values()),
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) (FnDataReceiver<WindowedValue<Iterable<String>>>) mainOutputValues::add);
+          (FnDataReceiver) (FnDataReceiver<WindowedValue<Iterable<String>>>) mainOutputValues::add,
+          IterableCoder.of(StringUtf8Coder.of()));
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -851,7 +859,8 @@ public class FnApiDoFnRunnerTest implements Serializable {
       consumers.register(
           Iterables.getOnlyElement(pTransform.getOutputsMap().values()),
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) (FnDataReceiver<WindowedValue<Iterable<String>>>) mainOutputValues::add);
+          (FnDataReceiver) (FnDataReceiver<WindowedValue<Iterable<String>>>) mainOutputValues::add,
+          IterableCoder.of(StringUtf8Coder.of()));
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -931,6 +940,21 @@ public class FnApiDoFnRunnerTest implements Serializable {
       builder.setInt64SumValue(2);
       expected.add(builder.build());
 
+      builder = new SimpleMonitoringInfoBuilder();
+      builder.setUrn(MonitoringInfoConstants.Urns.SAMPLED_BYTE_SIZE);
+      builder.setLabel(
+          MonitoringInfoConstants.Labels.PCOLLECTION, "Window.Into()/Window.Assign.out");
+      builder.setInt64DistributionValue(DistributionData.create(4, 2, 2, 2));
+      expected.add(builder.build());
+
+      builder = new SimpleMonitoringInfoBuilder();
+      builder.setUrn(Urns.SAMPLED_BYTE_SIZE);
+      builder.setLabel(
+          MonitoringInfoConstants.Labels.PCOLLECTION,
+          "pTransformId/ParMultiDo(TestSideInputIsAccessibleForDownstreamCallers).output");
+      builder.setInt64DistributionValue(DistributionData.create(10, 2, 5, 5));
+      expected.add(builder.build());
+
       closeable.close();
       List<MonitoringInfo> result = new ArrayList<MonitoringInfo>();
       for (MonitoringInfo mi : metricsContainerRegistry.getMonitoringInfos()) {
@@ -982,7 +1006,8 @@ public class FnApiDoFnRunnerTest implements Serializable {
       consumers.register(
           outputPCollectionId,
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) mainOutputValues::add);
+          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) mainOutputValues::add,
+          StringUtf8Coder.of());
 
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
@@ -1647,7 +1672,8 @@ public class FnApiDoFnRunnerTest implements Serializable {
       consumers.register(
           outputPCollectionId,
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) mainOutputValues::add);
+          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) mainOutputValues::add,
+          StringUtf8Coder.of());
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -1733,13 +1759,13 @@ public class FnApiDoFnRunnerTest implements Serializable {
         assertEquals(
             ImmutableMap.of(
                 "output",
-                org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Timestamp.newBuilder()
+                org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Timestamp.newBuilder()
                     .setSeconds(expectedOutputWatermark.getMillis() / 1000)
                     .setNanos((int) (expectedOutputWatermark.getMillis() % 1000) * 1000000)
                     .build()),
             residualRoot.getApplication().getOutputWatermarksMap());
         assertEquals(
-            org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Duration.newBuilder()
+            org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Duration.newBuilder()
                 .setSeconds(54)
                 .setNanos(321000000)
                 .build(),
@@ -1869,7 +1895,7 @@ public class FnApiDoFnRunnerTest implements Serializable {
         assertEquals(
             ImmutableMap.of(
                 "output",
-                org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Timestamp.newBuilder()
+                org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Timestamp.newBuilder()
                     .setSeconds(expectedOutputWatermark.getMillis() / 1000)
                     .setNanos((int) (expectedOutputWatermark.getMillis() % 1000) * 1000000)
                     .build()),
@@ -1972,7 +1998,8 @@ public class FnApiDoFnRunnerTest implements Serializable {
       consumers.register(
           outputPCollectionId,
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) mainOutputValues::add);
+          (FnDataReceiver) (FnDataReceiver<WindowedValue<String>>) mainOutputValues::add,
+          StringUtf8Coder.of());
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -2052,27 +2079,27 @@ public class FnApiDoFnRunnerTest implements Serializable {
             residualRoot.getApplication().getInputId());
         assertEquals(TEST_TRANSFORM_ID, residualRoot.getApplication().getTransformId());
         Instant expectedOutputWatermark = GlobalWindow.TIMESTAMP_MIN_VALUE.plus(7);
-        Map<String, org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Timestamp>
+        Map<String, org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Timestamp>
             expectedOutputWatmermarkMap =
                 ImmutableMap.of(
                     "output",
-                    org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Timestamp.newBuilder()
+                    org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Timestamp.newBuilder()
                         .setSeconds(expectedOutputWatermark.getMillis() / 1000)
                         .setNanos((int) (expectedOutputWatermark.getMillis() % 1000) * 1000000)
                         .build());
         Instant initialWatermark = GlobalWindow.TIMESTAMP_MIN_VALUE.plus(1);
-        Map<String, org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Timestamp>
+        Map<String, org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Timestamp>
             expectedOutputWatmermarkMapForUnprocessedWindows =
                 ImmutableMap.of(
                     "output",
-                    org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Timestamp.newBuilder()
+                    org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Timestamp.newBuilder()
                         .setSeconds(initialWatermark.getMillis() / 1000)
                         .setNanos((int) (initialWatermark.getMillis() % 1000) * 1000000)
                         .build());
         assertEquals(
             expectedOutputWatmermarkMap, residualRoot.getApplication().getOutputWatermarksMap());
         assertEquals(
-            org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Duration.newBuilder()
+            org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Duration.newBuilder()
                 .setSeconds(54)
                 .setNanos(321000000)
                 .build(),
@@ -2270,19 +2297,19 @@ public class FnApiDoFnRunnerTest implements Serializable {
             residualRootInUnprocessedWindows.getRequestedTimeDelay());
         Instant initialWatermark = GlobalWindow.TIMESTAMP_MIN_VALUE.plus(1);
         Instant expectedOutputWatermark = GlobalWindow.TIMESTAMP_MIN_VALUE.plus(2);
-        Map<String, org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Timestamp>
+        Map<String, org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Timestamp>
             expectedOutputWatermarkMapInUnprocessedResiduals =
                 ImmutableMap.of(
                     "output",
-                    org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Timestamp.newBuilder()
+                    org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Timestamp.newBuilder()
                         .setSeconds(initialWatermark.getMillis() / 1000)
                         .setNanos((int) (initialWatermark.getMillis() % 1000) * 1000000)
                         .build());
-        Map<String, org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Timestamp>
+        Map<String, org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Timestamp>
             expectedOutputWatermarkMap =
                 ImmutableMap.of(
                     "output",
-                    org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Timestamp.newBuilder()
+                    org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Timestamp.newBuilder()
                         .setSeconds(expectedOutputWatermark.getMillis() / 1000)
                         .setNanos((int) (expectedOutputWatermark.getMillis() % 1000) * 1000000)
                         .build());
@@ -2360,7 +2387,6 @@ public class FnApiDoFnRunnerTest implements Serializable {
           TEST_TRANSFORM_ID,
           ParDo.of(new WindowObservingTestSplittableDoFn(singletonSideInputView))
               .withSideInputs(singletonSideInputView));
-
       RunnerApi.Pipeline pProto =
           ProtoOverrides.updateTransform(
               PTransformTranslation.PAR_DO_TRANSFORM_URN,
@@ -2390,7 +2416,11 @@ public class FnApiDoFnRunnerTest implements Serializable {
       PCollectionConsumerRegistry consumers =
           new PCollectionConsumerRegistry(
               metricsContainerRegistry, mock(ExecutionStateTracker.class));
-      consumers.register(outputPCollectionId, TEST_TRANSFORM_ID, ((List) mainOutputValues)::add);
+      consumers.register(
+          outputPCollectionId,
+          TEST_TRANSFORM_ID,
+          ((List) mainOutputValues)::add,
+          KvCoder.of(StringUtf8Coder.of(), KvCoder.of(OffsetRange.Coder.of(), InstantCoder.of())));
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -2398,7 +2428,6 @@ public class FnApiDoFnRunnerTest implements Serializable {
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "finish");
       List<ThrowingRunnable> teardownFunctions = new ArrayList<>();
-
       new FnApiDoFnRunner.Factory<>()
           .createRunnerForPTransform(
               PipelineOptionsFactory.create(),
@@ -2489,7 +2518,11 @@ public class FnApiDoFnRunnerTest implements Serializable {
       PCollectionConsumerRegistry consumers =
           new PCollectionConsumerRegistry(
               metricsContainerRegistry, mock(ExecutionStateTracker.class));
-      consumers.register(outputPCollectionId, TEST_TRANSFORM_ID, ((List) mainOutputValues)::add);
+      consumers.register(
+          outputPCollectionId,
+          TEST_TRANSFORM_ID,
+          ((List) mainOutputValues)::add,
+          KvCoder.of(StringUtf8Coder.of(), KvCoder.of(OffsetRange.Coder.of(), InstantCoder.of())));
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -2607,7 +2640,11 @@ public class FnApiDoFnRunnerTest implements Serializable {
       PCollectionConsumerRegistry consumers =
           new PCollectionConsumerRegistry(
               metricsContainerRegistry, mock(ExecutionStateTracker.class));
-      consumers.register(outputPCollectionId, TEST_TRANSFORM_ID, ((List) mainOutputValues)::add);
+      consumers.register(
+          outputPCollectionId,
+          TEST_TRANSFORM_ID,
+          ((List) mainOutputValues)::add,
+          KvCoder.of(StringUtf8Coder.of(), KvCoder.of(OffsetRange.Coder.of(), InstantCoder.of())));
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -2715,7 +2752,13 @@ public class FnApiDoFnRunnerTest implements Serializable {
       PCollectionConsumerRegistry consumers =
           new PCollectionConsumerRegistry(
               metricsContainerRegistry, mock(ExecutionStateTracker.class));
-      consumers.register(outputPCollectionId, TEST_TRANSFORM_ID, ((List) mainOutputValues)::add);
+      Coder coder =
+          KvCoder.of(
+              KvCoder.of(
+                  StringUtf8Coder.of(), KvCoder.of(OffsetRange.Coder.of(), InstantCoder.of())),
+              DoubleCoder.of());
+      consumers.register(
+          outputPCollectionId, TEST_TRANSFORM_ID, ((List) mainOutputValues)::add, coder);
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -2828,7 +2871,13 @@ public class FnApiDoFnRunnerTest implements Serializable {
       PCollectionConsumerRegistry consumers =
           new PCollectionConsumerRegistry(
               metricsContainerRegistry, mock(ExecutionStateTracker.class));
-      consumers.register(outputPCollectionId, TEST_TRANSFORM_ID, ((List) mainOutputValues)::add);
+      Coder coder =
+          KvCoder.of(
+              KvCoder.of(
+                  StringUtf8Coder.of(), KvCoder.of(OffsetRange.Coder.of(), InstantCoder.of())),
+              DoubleCoder.of());
+      consumers.register(
+          outputPCollectionId, TEST_TRANSFORM_ID, ((List) mainOutputValues)::add, coder);
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -2985,7 +3034,13 @@ public class FnApiDoFnRunnerTest implements Serializable {
       PCollectionConsumerRegistry consumers =
           new PCollectionConsumerRegistry(
               metricsContainerRegistry, mock(ExecutionStateTracker.class));
-      consumers.register(outputPCollectionId, TEST_TRANSFORM_ID, ((List) mainOutputValues)::add);
+      Coder coder =
+          KvCoder.of(
+              KvCoder.of(
+                  StringUtf8Coder.of(), KvCoder.of(OffsetRange.Coder.of(), InstantCoder.of())),
+              DoubleCoder.of());
+      consumers.register(
+          outputPCollectionId, TEST_TRANSFORM_ID, ((List) mainOutputValues)::add, coder);
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -3194,10 +3249,16 @@ public class FnApiDoFnRunnerTest implements Serializable {
       PCollectionConsumerRegistry consumers =
           new PCollectionConsumerRegistry(
               metricsContainerRegistry, mock(ExecutionStateTracker.class));
+      Coder coder =
+          KvCoder.of(
+              KvCoder.of(
+                  StringUtf8Coder.of(), KvCoder.of(OffsetRange.Coder.of(), InstantCoder.of())),
+              DoubleCoder.of());
       consumers.register(
           outputPCollectionId,
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) new SplittableFnDataReceiver(mainOutputValues));
+          (FnDataReceiver) new SplittableFnDataReceiver(mainOutputValues),
+          coder);
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -3363,10 +3424,13 @@ public class FnApiDoFnRunnerTest implements Serializable {
       PCollectionConsumerRegistry consumers =
           new PCollectionConsumerRegistry(
               metricsContainerRegistry, mock(ExecutionStateTracker.class));
+      Coder coder =
+          KvCoder.of(KvCoder.of(StringUtf8Coder.of(), OffsetRange.Coder.of()), DoubleCoder.of());
       consumers.register(
           outputPCollectionId,
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) new SplittableFnDataReceiver(mainOutputValues));
+          (FnDataReceiver) new SplittableFnDataReceiver(mainOutputValues),
+          coder);
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -3440,10 +3504,16 @@ public class FnApiDoFnRunnerTest implements Serializable {
       PCollectionConsumerRegistry consumers =
           new PCollectionConsumerRegistry(
               metricsContainerRegistry, mock(ExecutionStateTracker.class));
+      Coder coder =
+          KvCoder.of(
+              KvCoder.of(
+                  StringUtf8Coder.of(), KvCoder.of(OffsetRange.Coder.of(), InstantCoder.of())),
+              DoubleCoder.of());
       consumers.register(
           outputPCollectionId,
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) new SplittableFnDataReceiver(mainOutputValues));
+          (FnDataReceiver) new SplittableFnDataReceiver(mainOutputValues),
+          coder);
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -3554,10 +3624,16 @@ public class FnApiDoFnRunnerTest implements Serializable {
       PCollectionConsumerRegistry consumers =
           new PCollectionConsumerRegistry(
               metricsContainerRegistry, mock(ExecutionStateTracker.class));
+      Coder coder =
+          KvCoder.of(
+              KvCoder.of(
+                  StringUtf8Coder.of(), KvCoder.of(OffsetRange.Coder.of(), InstantCoder.of())),
+              DoubleCoder.of());
       consumers.register(
           outputPCollectionId,
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) new SplittableFnDataReceiver(mainOutputValues));
+          (FnDataReceiver) new SplittableFnDataReceiver(mainOutputValues),
+          coder);
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -3690,10 +3766,16 @@ public class FnApiDoFnRunnerTest implements Serializable {
       PCollectionConsumerRegistry consumers =
           new PCollectionConsumerRegistry(
               metricsContainerRegistry, mock(ExecutionStateTracker.class));
+      Coder coder =
+          KvCoder.of(
+              KvCoder.of(
+                  StringUtf8Coder.of(), KvCoder.of(OffsetRange.Coder.of(), InstantCoder.of())),
+              DoubleCoder.of());
       consumers.register(
           outputPCollectionId,
           TEST_TRANSFORM_ID,
-          (FnDataReceiver) new SplittableFnDataReceiver(mainOutputValues));
+          (FnDataReceiver) new SplittableFnDataReceiver(mainOutputValues),
+          coder);
       PTransformFunctionRegistry startFunctionRegistry =
           new PTransformFunctionRegistry(
               mock(MetricsContainerStepMap.class), mock(ExecutionStateTracker.class), "start");
@@ -4695,9 +4777,9 @@ public class FnApiDoFnRunnerTest implements Serializable {
                   .build()));
     }
 
-    private org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Timestamp toTimestamp(
+    private org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Timestamp toTimestamp(
         Instant time) {
-      return org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Timestamp.newBuilder()
+      return org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Timestamp.newBuilder()
           .setSeconds(time.getMillis() / 1000)
           .setNanos((int) (time.getMillis() % 1000) * 1000000)
           .build();
@@ -4803,7 +4885,7 @@ public class FnApiDoFnRunnerTest implements Serializable {
       assertEquals(1, result.getResidualRoots().size());
       DelayedBundleApplication residualRoot = result.getResidualRoots().get(0);
       assertEquals(
-          org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Duration.getDefaultInstance(),
+          org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Duration.getDefaultInstance(),
           residualRoot.getRequestedTimeDelay());
       assertEquals(PROCESS_TRANSFORM_ID, residualRoot.getApplication().getTransformId());
       assertEquals(PROCESS_INPUT_ID, residualRoot.getApplication().getInputId());
@@ -4858,7 +4940,7 @@ public class FnApiDoFnRunnerTest implements Serializable {
       DelayedBundleApplication windowResidual = result.getResidualRoots().get(0);
       DelayedBundleApplication elementResidual = result.getResidualRoots().get(1);
       assertEquals(
-          org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Duration.getDefaultInstance(),
+          org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Duration.getDefaultInstance(),
           windowResidual.getRequestedTimeDelay());
       assertEquals(PROCESS_TRANSFORM_ID, windowResidual.getApplication().getTransformId());
       assertEquals(PROCESS_INPUT_ID, windowResidual.getApplication().getInputId());
@@ -4916,7 +4998,7 @@ public class FnApiDoFnRunnerTest implements Serializable {
       DelayedBundleApplication windowResidual = result.getResidualRoots().get(0);
       DelayedBundleApplication elementResidual = result.getResidualRoots().get(1);
       assertEquals(
-          org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Duration.getDefaultInstance(),
+          org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Duration.getDefaultInstance(),
           windowResidual.getRequestedTimeDelay());
       assertEquals(TRUNCATE_TRANSFORM_ID, windowResidual.getApplication().getTransformId());
       assertEquals(TRUNCATE_INPUT_ID, windowResidual.getApplication().getInputId());

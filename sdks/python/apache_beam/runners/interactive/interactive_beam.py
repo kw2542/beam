@@ -39,6 +39,8 @@ from datetime import timedelta
 import pandas as pd
 
 import apache_beam as beam
+from apache_beam.dataframe.convert import to_pcollection
+from apache_beam.dataframe.frame_base import DeferredBase
 from apache_beam.runners.interactive import interactive_environment as ie
 from apache_beam.runners.interactive.display import pipeline_graph
 from apache_beam.runners.interactive.display.pcoll_visualization import visualize
@@ -361,12 +363,14 @@ def watch(watchable):
   ie.current_env().watch(watchable)
 
 
-# TODO(BEAM-8288): Change the signature of this function to
-# `show(*pcolls, include_window_info=False, visualize_data=False)` once Python 2
-# is completely deprecated from Beam.
 @progress_indicated
-def show(*pcolls, **configs):
-  # type: (*Union[Dict[Any, PCollection], Iterable[PCollection], PCollection], **bool) -> None
+def show(
+    *pcolls,
+    include_window_info=False,
+    visualize_data=False,
+    n='inf',
+    duration='inf'):
+  # type: (*Union[Dict[Any, PCollection], Iterable[PCollection], PCollection], bool, bool, Union[int, str], Union[int, str]) -> None
 
   """Shows given PCollections in an interactive exploratory way if used within
   a notebook, or prints a heading sampled data if used within an ipython shell.
@@ -451,13 +455,6 @@ def show(*pcolls, **configs):
         '{} is not an apache_beam.pvalue.PCollection.'.format(pcoll))
   user_pipeline = pcolls[0].pipeline
 
-  # TODO(BEAM-8288): Remove below pops and assertion once Python 2 is
-  # deprecated from Beam.
-  include_window_info = configs.pop('include_window_info', False)
-  visualize_data = configs.pop('visualize_data', False)
-  n = configs.pop('n', 'inf')
-  duration = configs.pop('duration', 'inf')
-
   if isinstance(n, str):
     assert n == 'inf', (
         'Currently only the string \'inf\' is supported. This denotes reading '
@@ -474,12 +471,6 @@ def show(*pcolls, **configs):
 
   if duration == 'inf':
     duration = float('inf')
-
-  # This assertion is to protect the backward compatibility for function
-  # signature change after Python 2 deprecation.
-  assert not configs, (
-      'The only supported arguments are include_window_info, visualize_data, '
-      'n, and duration')
 
   recording_manager = ie.current_env().get_recording_manager(
       user_pipeline, create_if_absent=True)
@@ -548,6 +539,9 @@ def collect(pcoll, n='inf', duration='inf', include_window_info=False):
     # Run the pipeline and bring the PCollection into memory as a Dataframe.
     in_memory_square = head(square, n=5)
   """
+  if isinstance(pcoll, DeferredBase):
+    pcoll = to_pcollection(pcoll)
+
   assert isinstance(pcoll, beam.pvalue.PCollection), (
       '{} is not an apache_beam.pvalue.PCollection.'.format(pcoll))
 
@@ -580,7 +574,10 @@ def collect(pcoll, n='inf', duration='inf', include_window_info=False):
     recording.cancel()
     return pd.DataFrame()
 
-  return elements_to_df(elements, include_window_info=include_window_info)
+  return elements_to_df(
+      elements,
+      include_window_info=include_window_info,
+      element_type=pcoll.element_type)
 
 
 @progress_indicated

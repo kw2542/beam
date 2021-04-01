@@ -43,10 +43,10 @@ import org.apache.beam.sdk.fn.stream.OutboundObserverFactory;
 import org.apache.beam.sdk.fn.test.InProcessManagedChannelFactory;
 import org.apache.beam.sdk.fn.test.TestStreams;
 import org.apache.beam.sdk.function.ThrowingFunction;
-import org.apache.beam.vendor.grpc.v1p26p0.io.grpc.Server;
-import org.apache.beam.vendor.grpc.v1p26p0.io.grpc.inprocess.InProcessServerBuilder;
-import org.apache.beam.vendor.grpc.v1p26p0.io.grpc.stub.CallStreamObserver;
-import org.apache.beam.vendor.grpc.v1p26p0.io.grpc.stub.StreamObserver;
+import org.apache.beam.vendor.grpc.v1p36p0.io.grpc.Server;
+import org.apache.beam.vendor.grpc.v1p36p0.io.grpc.inprocess.InProcessServerBuilder;
+import org.apache.beam.vendor.grpc.v1p36p0.io.grpc.stub.CallStreamObserver;
+import org.apache.beam.vendor.grpc.v1p36p0.io.grpc.stub.StreamObserver;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -54,9 +54,6 @@ import org.junit.runners.JUnit4;
 
 /** Tests for {@link BeamFnControlClient}. */
 @RunWith(JUnit4.class)
-@SuppressWarnings({
-  "nullness" // TODO(https://issues.apache.org/jira/browse/BEAM-10402)
-})
 public class BeamFnControlClientTest {
   private static final BeamFnApi.InstructionRequest SUCCESSFUL_REQUEST =
       BeamFnApi.InstructionRequest.newBuilder()
