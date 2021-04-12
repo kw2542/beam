@@ -14,11 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import unittest
 
 import numpy as np
 import pandas as pd
+from parameterized import parameterized
 
 import apache_beam as beam
 from apache_beam.dataframe import expressions
@@ -504,6 +504,16 @@ class DeferredFrameTest(unittest.TestCase):
     s.index = s.index.map(float)
     self._run_test(lambda s: s[1.5:6], s)
 
+  @parameterized.expand([
+      (pd.Series(range(10)), ),  # unique
+      (pd.Series(list(range(100)) + [0]), ),  # non-unique int
+      (pd.Series(list(range(100)) + [0]) / 100, ),  # non-unique flt
+      (pd.Series(['a', 'b', 'c', 'd']), ),  # unique str
+      (pd.Series(['a', 'b', 'a', 'c', 'd']), ),  # non-unique str
+  ])
+  def test_series_is_unique(self, series):
+    self._run_test(lambda s: s.is_unique, series)
+
   def test_dataframe_getitem(self):
     df = pd.DataFrame({'A': [x**2 for x in range(6)], 'B': list('abcdef')})
     self._run_test(lambda df: df['A'], df)
@@ -554,7 +564,6 @@ class DeferredFrameTest(unittest.TestCase):
     self._run_test(lambda df1, df2: df2.append(df1, sort=True), df1, df2)
     self._run_test(lambda df1, df2: df2.append(df1, sort=False), df1, df2)
 
-  @unittest.skipIf(sys.version_info < (3, 6), 'Nondeterministic dict ordering.')
   def test_dataframe_agg(self):
     df = pd.DataFrame({'A': [1, 2, 3, 4], 'B': [2, 3, 5, 7]})
     self._run_test(lambda df: df.agg('sum'), df)
@@ -565,7 +574,6 @@ class DeferredFrameTest(unittest.TestCase):
       self._run_test(lambda df: df.agg({'A': ['sum', 'mean']}), df)
       self._run_test(lambda df: df.agg({'A': ['sum', 'mean'], 'B': 'min'}), df)
 
-  @unittest.skipIf(sys.version_info < (3, 6), 'Nondeterministic dict ordering.')
   def test_smallest_largest(self):
     df = pd.DataFrame({'A': [1, 1, 2, 2], 'B': [2, 3, 5, 7]})
     self._run_test(lambda df: df.nlargest(1, 'A', keep='all'), df)
@@ -632,6 +640,16 @@ class DeferredFrameTest(unittest.TestCase):
     self.assertRaises(
         NotImplementedError, lambda: deferred_df.query('a > @b + c'))
 
+  def test_index_name_assignment(self):
+    df = pd.DataFrame({'a': ['foo', 'bar'], 'b': [1, 2]})
+    df = df.set_index(['a', 'b'], drop=False)
+
+    def change_index_names(df):
+      df.index.names = ['A', None]
+      return df
+
+    self._run_test(change_index_names, df)
+
 
 class AllowNonParallelTest(unittest.TestCase):
   def _use_non_parallel_operation(self):
@@ -661,6 +679,35 @@ class AllowNonParallelTest(unittest.TestCase):
     # disallowed
     with self.assertRaises(expressions.NonParallelOperation):
       self._use_non_parallel_operation()
+
+
+class ConstructionTimeTest(unittest.TestCase):
+  """Tests for operations that can be executed eagerly."""
+  DF = pd.DataFrame({
+      'str_col': ['foo', 'bar'],
+      'int_col': [1, 2],
+      'flt_col': [1.1, 2.2],
+  })
+  DEFERRED_DF = frame_base.DeferredFrame.wrap(
+      expressions.PlaceholderExpression(DF))
+
+  def _run_test(self, fn):
+    self.assertEqual(fn(self.DEFERRED_DF), fn(self.DF))
+
+  @parameterized.expand(DF.columns)
+  def test_series_name(self, col_name):
+    self._run_test(lambda df: df[col_name])
+
+  @parameterized.expand(DF.columns)
+  def test_series_dtype(self, col_name):
+    self._run_test(lambda df: df[col_name].dtype)
+    self._run_test(lambda df: df[col_name].dtypes)
+
+  def test_dataframe_columns(self):
+    self._run_test(lambda df: list(df.columns))
+
+  def test_dataframe_dtypes(self):
+    self._run_test(lambda df: list(df.dtypes))
 
 
 if __name__ == '__main__':

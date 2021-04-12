@@ -72,8 +72,8 @@ import org.apache.beam.sdk.function.ThrowingRunnable;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.DoFn.BundleFinalizer;
 import org.apache.beam.sdk.util.common.ReflectHelpers;
-import org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Message;
-import org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.TextFormat;
+import org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.Message;
+import org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.TextFormat;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.cache.CacheBuilder;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.cache.CacheLoader;
@@ -711,6 +711,7 @@ public class ProcessBundleHandler {
       getpCollectionConsumerRegistry().reset();
       getMetricsContainerRegistry().reset();
       getStateTracker().reset();
+      getQueueingClient().reset();
       getBundleFinalizationCallbackRegistrations().clear();
       for (ThrowingRunnable resetFunction : getResetFunctions()) {
         resetFunction.run();

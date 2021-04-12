@@ -52,9 +52,10 @@ from __future__ import absolute_import
 import abc
 import logging
 import os
+import re
 import shutil
-import sys
 import tempfile
+import unicodedata
 from builtins import object
 from builtins import zip
 from collections import defaultdict
@@ -543,13 +544,8 @@ class Pipeline(object):
         self.visit(typecheck.TypeCheckVisitor())
 
       if self._options.view_as(TypeOptions).performance_runtime_type_check:
-        if sys.version_info < (3, ):
-          raise RuntimeError(
-              'You cannot turn on performance_runtime_type_check '
-              'in Python 2. This is a Python 3 feature.')
-        else:
-          from apache_beam.typehints import typecheck
-          self.visit(typecheck.PerformanceTypeCheckVisitor())
+        from apache_beam.typehints import typecheck
+        self.visit(typecheck.PerformanceTypeCheckVisitor())
 
       if self._options.view_as(SetupOptions).save_main_session:
         # If this option is chosen, verify we can pickle the main session early.
@@ -1422,10 +1418,14 @@ class ComponentIdMap(object):
 
     return self._obj_to_id[obj]
 
+  def _normalize(self, str_value):
+    str_value = unicodedata.normalize('NFC', str_value)
+    return re.sub(r'[^a-zA-Z0-9-_]+', '-', str_value)
+
   def _unique_ref(self, obj=None, obj_type=None, label=None):
+    # Normalize, trim, and uniqify.
+    prefix = self._normalize(
+        '%s_%s_%s' %
+        (self.namespace, obj_type.__name__, label or type(obj).__name__))[0:100]
     self._counters[obj_type] += 1
-    return "%s_%s_%s_%d" % (
-        self.namespace,
-        obj_type.__name__,
-        label or type(obj).__name__,
-        self._counters[obj_type])
+    return '%s_%d' % (prefix, self._counters[obj_type])

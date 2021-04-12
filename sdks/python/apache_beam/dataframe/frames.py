@@ -470,11 +470,11 @@ class DeferredDataFrameOrSeries(frame_base.DeferredFrame):
   def dtype(self):
     return self._expr.proxy().dtype
 
+  isin = frame_base._elementwise_method('isin')
+
   @property
   def ndim(self):
     return self._expr.proxy().ndim
-
-  dtypes = dtype
 
   def _get_index(self):
     return _DeferredIndex(self)
@@ -484,13 +484,39 @@ class DeferredDataFrameOrSeries(frame_base.DeferredFrame):
 
   hist = frame_base.wont_implement_method('plot')
 
+  attrs = property(frame_base.wont_implement_method('experimental'))
+
   first = last = frame_base.wont_implement_method('order-sensitive')
   head = tail = frame_base.wont_implement_method('order-sensitive')
+  interpolate = frame_base.wont_implement_method('order-sensitive')
 
 
 @populate_not_implemented(pd.Series)
 @frame_base.DeferredFrame._register_for(pd.Series)
 class DeferredSeries(DeferredDataFrameOrSeries):
+  @property
+  def name(self):
+    return self._expr.proxy().name
+
+  @name.setter
+  def name(self, value):
+    def fn(s):
+      s = s.copy()
+      s.name = value
+      return s
+
+    self._expr = expressions.ComputedExpression(
+        'series_set_name',
+        fn, [self._expr],
+        requires_partition_by=partitionings.Arbitrary(),
+        preserves_partition_by=partitionings.Arbitrary())
+
+  @property
+  def dtype(self):
+    return self._expr.proxy().dtype
+
+  dtypes = dtype
+
   def __getitem__(self, key):
     if _is_null_slice(key) or key is Ellipsis:
       return self
@@ -580,6 +606,10 @@ class DeferredSeries(DeferredDataFrameOrSeries):
     return aligned.iloc[:, 0], aligned.iloc[:, 1]
 
   array = property(frame_base.wont_implement_method('non-deferred value'))
+
+  argmax = frame_base.wont_implement_method('order-sensitive')
+  argmin = frame_base.wont_implement_method('order-sensitive')
+  ravel = frame_base.wont_implement_method('non-deferred value')
 
   rename = frame_base._elementwise_method('rename')
   between = frame_base._elementwise_method('between')
@@ -764,8 +794,6 @@ class DeferredSeries(DeferredDataFrameOrSeries):
 
   items = iteritems = frame_base.wont_implement_method('non-lazy')
 
-  isin = frame_base._elementwise_method('isin')
-
   isnull = isna = frame_base._elementwise_method('isna')
   notnull = notna = frame_base._elementwise_method('notna')
 
@@ -874,6 +902,33 @@ class DeferredSeries(DeferredDataFrameOrSeries):
               lambda df: df.nsmallest(**kwargs), [per_partition],
               preserves_partition_by=partitionings.Arbitrary(),
               requires_partition_by=partitionings.Singleton()))
+
+  @property
+  def is_unique(self):
+    def set_index(s):
+      s = s[:]
+      s.index = s
+      return s
+
+    self_index = expressions.ComputedExpression(
+        'set_index',
+        set_index, [self._expr],
+        requires_partition_by=partitionings.Arbitrary(),
+        preserves_partition_by=partitionings.Singleton())
+
+    is_unique_distributed = expressions.ComputedExpression(
+        'is_unique_distributed',
+        lambda s: pd.Series(s.is_unique), [self_index],
+        requires_partition_by=partitionings.Index(),
+        preserves_partition_by=partitionings.Singleton())
+
+    with expressions.allow_non_parallel_operations():
+      return frame_base.DeferredFrame.wrap(
+          expressions.ComputedExpression(
+              'combine',
+              lambda s: s.all(), [is_unique_distributed],
+              requires_partition_by=partitionings.Singleton(),
+              preserves_partition_by=partitionings.Singleton()))
 
   plot = property(frame_base.wont_implement_method('plot'))
   pop = frame_base.wont_implement_method('non-lazy')
@@ -1842,6 +1897,7 @@ class DeferredDataFrame(DeferredDataFrameOrSeries):
 for io_func in dir(io):
   if io_func.startswith('to_'):
     setattr(DeferredDataFrame, io_func, getattr(io, io_func))
+    setattr(DeferredSeries, io_func, getattr(io, io_func))
 
 
 for meth in ('filter', ):
@@ -2163,6 +2219,20 @@ class _DeferredIndex(object):
   @property
   def names(self):
     return self._frame._expr.proxy().index.names
+
+  @names.setter
+  def names(self, value):
+    def set_index_names(df):
+      df = df.copy()
+      df.index.names = value
+      return df
+
+    self._frame._expr = expressions.ComputedExpression(
+      'set_index_names',
+      set_index_names,
+      [self._frame._expr],
+      requires_partition_by=partitionings.Arbitrary(),
+      preserves_partition_by=partitionings.Arbitrary())
 
   @property
   def ndim(self):
