@@ -17,7 +17,6 @@
  */
 package org.apache.beam.examples;
 
-import org.apache.beam.fn.harness.FnHarness;
 import org.apache.beam.runners.portability.PortableRunner;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;

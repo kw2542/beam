@@ -259,6 +259,7 @@ public class Read {
    * allows us to split the sub-source over and over yet still receive "source" objects as inputs.
    */
   static class BoundedSourceAsSDFWrapperFn<T> extends DoFn<BoundedSource<T>, T> {
+    private static final long serialVersionUID = -5795552897610372256L;
     private static final Logger LOG = LoggerFactory.getLogger(BoundedSourceAsSDFWrapperFn.class);
     private static final long DEFAULT_DESIRED_BUNDLE_SIZE_BYTES = 64 * (1 << 20);
 
