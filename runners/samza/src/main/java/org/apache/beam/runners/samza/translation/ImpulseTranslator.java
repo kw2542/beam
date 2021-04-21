@@ -66,14 +66,14 @@ public class ImpulseTranslator
       PortableTranslationContext ctx) {
 
     final String outputId = ctx.getOutputId(transform);
-    final String safeId = SamzaPipelineTranslatorUtils.escape(outputId);
+    final String escapedOutputId = SamzaPipelineTranslatorUtils.escape(outputId);
     final GenericSystemDescriptor systemDescriptor =
-        new GenericSystemDescriptor(safeId, SamzaImpulseSystemFactory.class.getName());
+        new GenericSystemDescriptor(escapedOutputId, SamzaImpulseSystemFactory.class.getName());
 
     // The KvCoder is needed here for Samza not to crop the key.
     final Serde<KV<?, OpMessage<byte[]>>> kvSerde = KVSerde.of(new NoOpSerde(), new NoOpSerde<>());
     final GenericInputDescriptor<KV<?, OpMessage<byte[]>>> inputDescriptor =
-        systemDescriptor.getInputDescriptor(safeId, kvSerde);
+        systemDescriptor.getInputDescriptor(escapedOutputId, kvSerde);
 
     ctx.registerInputMessageStream(outputId, inputDescriptor);
   }

@@ -3,7 +3,6 @@ package org.apache.beam.runners.samza;
 import org.apache.beam.runners.fnexecution.ServerFactory;
 import org.apache.beam.runners.jobsubmission.JobServerDriver;
 import org.apache.beam.sdk.io.FileSystems;
-import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.options.PortablePipelineOptions;
 import org.kohsuke.args4j.CmdLineException;
@@ -11,15 +10,13 @@ import org.kohsuke.args4j.CmdLineParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
+/** Driver program that starts a job server for the Samza runner. */
 public class SamzaJobServerDriver extends JobServerDriver {
 
   private static final Logger LOG = LoggerFactory.getLogger(SamzaJobServerDriver.class);
 
   /** Samza runner-specific Configuration for the jobServer. */
-  public static class SamzaServerConfiguration extends ServerConfiguration {
-
-  }
+  public static class SamzaServerConfiguration extends ServerConfiguration {}
 
   public static void main(String[] args) {
     // TODO: Expose the fileSystem related options.
@@ -64,14 +61,17 @@ public class SamzaJobServerDriver extends JobServerDriver {
       SamzaServerConfiguration configuration,
       ServerFactory jobServerFactory,
       ServerFactory artifactServerFactory) {
-    return new SamzaJobServerDriver(
-        configuration, jobServerFactory, artifactServerFactory);
+    return new SamzaJobServerDriver(configuration, jobServerFactory, artifactServerFactory);
   }
 
   private SamzaJobServerDriver(
       SamzaServerConfiguration configuration,
       ServerFactory jobServerFactory,
       ServerFactory artifactServerFactory) {
-    super(configuration, jobServerFactory, artifactServerFactory, () -> SamzaJobInvoker.create(configuration));
+    super(
+        configuration,
+        jobServerFactory,
+        artifactServerFactory,
+        () -> SamzaJobInvoker.create(configuration));
   }
 }

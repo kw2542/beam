@@ -50,15 +50,10 @@ public class SamzaExecutionContext implements ApplicationContainerContext {
     this.metricsContainer = metricsContainer;
   }
 
-  @Override
-  public void start() {
-
-  }
+  public void start() {}
 
   @Override
-  public void stop() {
-
-  }
+  public void stop() {}
 
   /** The factory to return this {@link SamzaExecutionContext}. */
   public class Factory implements ApplicationContainerContextFactory<SamzaExecutionContext> {
