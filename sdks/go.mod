@@ -21,6 +21,7 @@
 module github.com/apache/beam/sdks/v2
 
 go 1.18
+toolchain go1.24.1
 
 require (
 	cloud.google.com/go/bigquery v1.37.0
@@ -47,7 +48,7 @@ require (
 	google.golang.org/api v0.91.0
 	google.golang.org/genproto v0.0.0-20220802133213-ce4fa296bf78
 	google.golang.org/grpc v1.48.0
-	google.golang.org/protobuf v1.28.1
+	google.golang.org/protobuf v1.36.6
 	gopkg.in/retry.v1 v1.0.3
 	gopkg.in/yaml.v2 v2.4.0
 )
